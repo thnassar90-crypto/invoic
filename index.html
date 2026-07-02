@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>فاتورة Chopped - قابلة للتعديل</title>
+<style>
+  @page {
+    size: 9.5in 11in;
+    margin: 0.25in 0.5in;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+    margin: 0;
+    background: #ddd;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: #2b2b2b;
+    color: #fff;
+    padding: 10px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 14px;
+    direction: rtl;
+  }
+  .toolbar button {
+    background: #4a90e2;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .toolbar button.secondary { background: #555; }
+  .toolbar button:hover { opacity: 0.85; }
+  .toolbar .hint { color: #bbb; font-size: 12px; margin-right: auto; }
+
+  .page-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 24px 0 60px;
+  }
+  .page {
+    background: #fff;
+    width: 21cm;
+    min-height: 29.7cm;
+    padding: 0.5cm 1cm;
+    box-shadow: 0 0 12px rgba(0,0,0,0.35);
+  }
+
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  td, th {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    font-size: 12px;
+    vertical-align: middle;
+    position: relative;
+    overflow: hidden;
+  }
+  .noborder td, td.noborder, .noborder { border: none; }
+  [contenteditable="true"] { outline: none; cursor: text; }
+  [contenteditable="true"]:hover { background: #fffbe0; }
+  [contenteditable="true"]:focus { background: #fff7c2; }
+
+  .ar { direction: rtl; text-align: right; font-family: "Traditional Arabic", Tahoma, Arial, sans-serif; }
+  .en { direction: ltr; text-align: left; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+
+  .logo-ar { font-size: 26px; font-weight: bold; text-align: center; }
+  .logo-en { font-size: 22px; font-weight: bold; text-align: center; letter-spacing: 1px; }
+
+  .invoice-title { font-size: 18px; font-weight: bold; text-align: center; }
+
+  /* resize handles */
+  .col-resizer {
+    position: absolute;
+    top: 0; right: 0;
+    width: 8px; height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+  }
+  .col-resizer:hover {
+    background: rgba(74,144,226,0.35);
+  }
+  .row-resizer {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 8px; width: 100%;
+    cursor: row-resize;
+    z-index: 5;
+  }
+  .row-resizer:hover {
+    background: rgba(74,144,226,0.35);
+  }
+  .items-table td, .items-table th { min-width: 20px; vertical-align: top; }
+  .items-box-row td { height: 32px; }
+
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { background: #fff; }
+    .toolbar { display: none !important; }
+    .client-select-bar { display: none !important; }
+    .copy-btn { display: none !important; }
+    .dir-toggle { display: none !important; }
+    .col-resizer, .row-resizer { display: none !important; }
+    [contenteditable="true"]:hover, [contenteditable="true"]:focus { background: transparent; }
+    #qrPlaceholder { display: none !important; }
+    #companyHeader { display: none !important; }
+    .page-wrap { padding: 0; }
+    .page { box-shadow: none; width: 100%; min-height: auto; padding: 0; margin: 0; }
+    .items-box-row td { height: auto !important; }
+    #qrArea img[src] { width: 150px !important; height: 150px !important; max-width: none !important; max-height: none !important; display: block !important; }
+    .qr-area { min-height: auto !important; }
+  }
+
+  .notes-box {
+    margin-top: 18px;
+    border: 2px dashed #999;
+    border-radius: 6px;
+    padding: 10px;
+    background: #fffef5;
+  }
+  .notes-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    direction: rtl;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+  .copy-btn {
+    background: #4a90e2;
+    color: #fff;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .copy-btn:hover { opacity: 0.85; }
+  .notes-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+  .notes-table td { border: 1px solid #ccc; padding: 0; vertical-align: top; position: relative; }
+  .notes-area {
+    min-height: 140px;
+    text-align: start;
+    font-size: 14px;
+    padding: 8px;
+    outline: none;
+    background: #fff;
+  }
+  .notes-area:focus { background: #fffce0; }
+  .qr-cell { background: #fafafa; }
+  .qr-area {
+    color: #aaa;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+  }
+  .qr-area:focus { color: #333; }
+  .qr-upload-btn {
+    display: block;
+    margin: 6px auto 8px;
+  }
+
+  .dir-toggle {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+  }
+  .dir-toggle button {
+    flex: 1;
+    font-size: 10px;
+    padding: 3px 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .dir-toggle button:hover { background: #e8f0fe; }
+
+  .client-select-bar {
+    direction: rtl;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    background: #eef4fc;
+    border: 1px solid #cfe0f5;
+    border-radius: 4px;
+    padding: 6px 10px;
+  }
+  /* هيدر الشركة — شاشة فقط */
+  @media screen {
+    #companyHeader { font-size: 11px; opacity: 0.6; margin-bottom: 4px; }
+  }
+  @media print {
+    #companyHeader { display: none !important; }
+  }
+
+  .client-select-bar select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #aac4e6;
+    font-size: 13px;
+  }
+
+  /* QR يملأ الخلية الوسطى بالكامل */
+  .qr-cell { text-align: center; vertical-align: middle; }
+  .qr-area { min-height: 180px; display: flex; align-items: center; justify-content: center; }
+  .qr-area img#qrImage { max-width: 160px; max-height: 160px; width: 100%; object-fit: contain; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="printMode('letterhead')">🖨️ طباعة على ليتر هيد</button>
+  <button onclick="printMode('normal')">🖨️ طباعة عادي A4</button>
+  <button onclick="printMode('pdf')" style="background:#e74c3c;">📄 حفظ PDF كامل</button>
+  <button class="secondary" onclick="addRow()">+ صف</button>
+  <button class="secondary" onclick="removeRow()">- صف</button>
+  <span class="hint">⚠️ عند الطباعة: تأكد إن Scale = 80% و Margins = None</span>
+</div>
+
+<div class="page-wrap">
+<div class="page" id="page">
+
+  <!-- HEADER — يختفي بالطباعة على الليتر هيد -->
+  <table id="companyHeader" class="noborder" style="margin-bottom:2px;">
+    <tr>
+      <td class="noborder en" style="width:34%;" contenteditable="true">
+        <b>Al-Afaq Al-Mumtada Co. Ltd.</b><br>
+        Limited Liability<br>
+        Capital Paid 26,700,000 S.R.<br>
+        C.R. 1010507861 COC. 251085<br>
+        Tel.: +966 11 266 9996<br>
+        P.O. Box 12472 Riyadh 11473
+      </td>
+      <td class="noborder" style="width:32%; text-align:center;">
+        <img src="data:image/png;base64,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" style="max-width:180px; max-height:80px;">
+      </td>
+      <td class="noborder ar" style="width:34%;" contenteditable="true">
+        <b>شركة الآفاق الممتدة المحدودة</b><br>
+        ذات مسؤولية محدودة<br>
+        رأس المال المدفوع: 26,700,000 ر.س<br>
+        س.ت 1010507861 رقم العضوية 251085<br>
+        هاتف: 966 11 266 9996+<br>
+        ص.ب 12472 الرياض 11473
+      </td>
+    </tr>
+  </table>
+
+  <!-- العنوان الوطني والآيبان — يظل يطبع دايماً -->
+  <table class="noborder" id="addressIbanRow" style="margin-bottom:6px; font-size:12px;">
+    <tr>
+      <td class="noborder en" style="width:50%;" contenteditable="true">
+        Al Urubah St., Bldg. 3303, Al Sulaimaniyah Dist., Add. No. 8480, Riyadh 12245<br>
+        IBAN: SA5655000000099911500105 (Saudi Fransi)
+      </td>
+      <td class="noborder ar" style="width:50%; text-align:right;" contenteditable="true">
+        شارع العروبة، مبنى 3303، حي السليمانية، رقم إضافي 8480، الرياض 12245<br>
+        آيبان: SA5655000000099911500105 (البنك السعودي الفرنسي)
+      </td>
+    </tr>
+  </table>
+
+  <!-- TOP INFO -->
+  <table style="margin-bottom:6px;">
+    <colgroup>
+      <col style="width:30%"><col style="width:40%"><col style="width:30%">
+    </colgroup>
+    <tr>
+      <td class="en bold" contenteditable="true">VAT No. 310452781300003</td>
+      <td class="invoice-title center" contenteditable="true">INVOICE &nbsp; فاتورة ضريبية</td>
+      <td class="ar bold" contenteditable="true">310452781300003 :الرقم الضريبي</td>
+    </tr>
+    <tr>
+      <td class="en bold" contenteditable="true">Invoice No. رقم الفاتورة</td>
+      <td class="center bold" contenteditable="true">101049507</td>
+      <td class="ar bold" contenteditable="true">101049507 :رقم الفاتورة</td>
+    </tr>
+    <tr>
+      <td class="en" contenteditable="true">Invoice Date التاريخ</td>
+      <td class="ar center" contenteditable="true">2026/07/01</td>
+      <td class="ar" contenteditable="true">2026/07/01 :التاريخ</td>
+    </tr>
+    <tr>
+      <td class="en" contenteditable="true">Invoice Type نوع الفاتورة</td>
+      <td class="ar center" contenteditable="true">Debit Sales</td>
+      <td class="ar" contenteditable="true">Debit Sales :نوع الفاتورة</td>
+    </tr>
+    <tr>
+      <td class="en" contenteditable="true">Due Date تاريخ الاستحقاق</td>
+      <td class="ar center" contenteditable="true">2026/08/31</td>
+      <td class="ar" contenteditable="true">2026/08/31 :تاريخ الاستحقاق</td>
+    </tr>
+  </table>
+
+  <!-- CLIENT SELECTOR -->
+  <div class="client-select-bar">
+    <label for="clientSelect">اختر العميل: Client:</label>
+    <select id="clientSelect" onchange="fillClientInfo()">
+      <option value="">-- اختر --</option>
+      <option value="qiddiya">Qiddiya Park Operations</option>
+      <option value="aquarabia">Aquarabia</option>
+      <option value="sixflags">Six Flags</option>
+    </select>
+  </div>
+
+  <!-- CLIENT INFO (Bill To) -->
+  <table style="margin-bottom:6px;">
+    <tr>
+      <td class="ar bold center" colspan="4" style="background:#f0f0f0;" contenteditable="true">بيانات العميل&nbsp;&nbsp;Bill To</td>
+    </tr>
+    <tr>
+      <td class="ar bold" style="width:15%;" contenteditable="true">اسم الشركة</td>
+      <td class="ar" colspan="3" contenteditable="true" id="cliName">شركة القدية للاستثمار شركة شخص واحد</td>
+    </tr>
+    <tr>
+      <td class="ar bold" contenteditable="true">الرقم الضريبي</td>
+      <td class="ar" style="width:35%;" contenteditable="true" id="cliVat">310228530110003</td>
+      <td class="ar bold" style="width:15%;" contenteditable="true">رقم العميل</td>
+      <td class="ar" style="width:35%;" contenteditable="true" id="cliCr">100631</td>
+    </tr>
+    <tr>
+      <td class="ar bold" style="width:15%;" contenteditable="true">رقم أمر الشراء PO</td>
+      <td class="ar" colspan="3" contenteditable="true" id="cliPo">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="ar bold" contenteditable="true">الحي / العنوان الوطني</td>
+      <td class="ar" contenteditable="true" id="cliDistrict">AL MUZAHIMIYAH المزاحمية</td>
+      <td class="ar bold" contenteditable="true">الرمز البريدي</td>
+      <td class="ar" contenteditable="true" id="cliPostal">19662</td>
+    </tr>
+    <tr>
+      <td class="ar bold" contenteditable="true">رقم المبنى</td>
+      <td class="ar" contenteditable="true" id="cliBuilding">2448</td>
+      <td class="ar bold" contenteditable="true">الرقم الفرعي</td>
+      <td class="ar" contenteditable="true" id="cliSecondary">7460</td>
+    </tr>
+  </table>
+
+  <!-- ITEMS TABLE (resizable) -->
+  <table class="items-table" id="itemsTable" style="margin-bottom:6px;">
+    <colgroup>
+      <col style="width:10%"><col style="width:10%"><col style="width:10%">
+      <col style="width:10%"><col style="width:40%"><col style="width:10%"><col style="width:10%">
+    </colgroup>
+    <tr id="itemsHeaderRow">
+      <th class="en center bold" contenteditable="true">Total الإجمالي<br>S.R. ريال</th>
+      <th class="en center bold" contenteditable="true">Unit Price<br>سعر الوحدة</th>
+      <th class="en center bold" contenteditable="true">Unit<br>الوحدة</th>
+      <th class="en center bold" contenteditable="true">Qty.<br>الكمية</th>
+      <th class="center bold" contenteditable="true">DESCRIPTION&nbsp;&nbsp;البيان</th>
+      <th class="ar center bold" contenteditable="true">Barcode<br>الباركود</th>
+      <th class="ar center bold" contenteditable="true">Item Code<br>رقم الصنف</th>
+    </tr>
+    <tr class="items-box-row" id="itemsBoxRow">
+      <td class="center" contenteditable="true">16,212.38</td>
+      <td class="center" contenteditable="true">158.00</td>
+      <td class="ar center" contenteditable="true">كيلو</td>
+      <td class="center" contenteditable="true">102.610</td>
+      <td contenteditable="true">Black Angus Cube roll 150 Days G.F</td>
+      <td contenteditable="true"></td>
+      <td class="center" contenteditable="true">8006</td>
+    </tr>
+    <tr class="items-box-row" id="itemsBoxRow2">
+      <td class="center" contenteditable="true">12,062.50</td>
+      <td class="center" contenteditable="true">125.00</td>
+      <td class="ar center" contenteditable="true">كيلو</td>
+      <td class="center" contenteditable="true">96.500</td>
+      <td contenteditable="true">Black Angus Striploin 150 Days G.F</td>
+      <td contenteditable="true"></td>
+      <td class="center" contenteditable="true">8005</td>
+    </tr>
+    <tr class="items-box-row" id="itemsBoxRow3">
+      <td class="center" contenteditable="true">11,263.95</td>
+      <td class="center" contenteditable="true">45.00</td>
+      <td class="ar center" contenteditable="true">كيلو</td>
+      <td class="center" contenteditable="true">250.310</td>
+      <td contenteditable="true">Black Angus Brisket 150 Days G.F</td>
+      <td contenteditable="true"></td>
+      <td class="center" contenteditable="true">8007</td>
+    </tr>
+    <tr class="items-box-row" id="itemsBoxRow4">
+      <td class="center" contenteditable="true">20,610.00</td>
+      <td class="center" contenteditable="true">68.70</td>
+      <td class="ar center" contenteditable="true">كيلو</td>
+      <td class="center" contenteditable="true">300.000</td>
+      <td contenteditable="true">Chopped Beef Burger</td>
+      <td contenteditable="true"></td>
+      <td class="center" contenteditable="true">3001</td>
+    </tr>
+  </table>
+
+  <!-- TOTALS / DECLARATION / SIGNATURE -->
+  <table style="margin-bottom:0; page-break-inside: avoid;">
+    <colgroup>
+      <col style="width:17%"><col style="width:17%"><col style="width:49%"><col style="width:17%">
+    </colgroup>
+    <tr>
+      <td contenteditable="true">60,148.83</td>
+      <td class="ar center bold" contenteditable="true">Purchase Order<br>القيمة الإجمالية</td>
+      <td class="ar center" rowspan="5" style="vertical-align: middle; padding: 8px;">
+        <div contenteditable="true" style="font-size:11px; margin-bottom:10px;">
+          أقر أنا الموقع على هذه الفاتورة أنني استلمت كافة البضائع المدونة بها بحالة سليمة وانني سأقوم بسداد قيمتها وفي حال عدم السداد تعتبر ورقة تجارية واجبة الدفع بدون تعلل بموجب قرار مجلس الوزراء الموقر رقم 692 وتاريخ 1383/09/26هـ المتوج بالمرسوم الملكي الكريم م/37 وتاريخ 1383/10/11هـ نظام الأوراق التجارية
+        </div>
+        <div class="qr-area" id="qrArea" style="min-height:200px;">
+          <img id="qrImage" style="display:none; width:180px; height:180px; object-fit:contain;">
+          <span id="qrPlaceholder">[ مكان QR Code ]</span>
+        </div>
+        <button class="copy-btn qr-upload-btn" onclick="document.getElementById('qrFileInput').click()">📷 رفع صورة QR</button>
+        <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="uploadQR(event)">
+      </td>
+      <td class="ar center bold" contenteditable="true">Customer Name<br>اسم العميل</td>
+    </tr>
+    <tr>
+      <td contenteditable="true">0.00</td>
+      <td class="ar center bold" contenteditable="true">Discount<br>الخصم</td>
+      <td class="ar center bold" contenteditable="true">Customer Sign.<br>توقيع العميل</td>
+    </tr>
+    <tr>
+      <td contenteditable="true">60,148.83</td>
+      <td class="ar center bold" contenteditable="true">Total After Disc.<br>اجمالي بعد الخصم</td>
+      <td contenteditable="true">&nbsp;</td>
+    </tr>
+    <tr>
+      <td contenteditable="true">9,022.32</td>
+      <td class="ar center bold" contenteditable="true">VAT<br>ضريبة مضافة</td>
+      <td class="ar center bold" contenteditable="true">Salesman<br>البائع</td>
+    </tr>
+    <tr>
+      <td class="bold" contenteditable="true">69,171.15</td>
+      <td class="ar center bold" contenteditable="true">Net Amount<br>صافي القيمة</td>
+      <td contenteditable="true">&nbsp;</td>
+    </tr>
+  </table>
+
+</div>
+</div>
+
+<script>
+// ---------- Column / Row resizing (Excel-style) for the items table ----------
+const table = document.getElementById('itemsTable');
+const colgroup = table.querySelector('colgroup');
+const cols = colgroup.querySelectorAll('col');
+const headerCells = table.querySelectorAll('#itemsHeaderRow th');
+
+let startX, startWidth, colIndex, resizingCol = false;
+let startY, startHeight, resizingRow = null;
+
+function addResizers() {
+  headerCells.forEach((th, i) => {
+    const resizer = document.createElement('div');
+    resizer.className = 'col-resizer';
+    th.appendChild(resizer);
+    resizer.addEventListener('mousedown', (e) => {
+      resizingCol = true;
+      colIndex = i;
+      startX = e.pageX;
+      startWidth = cols[i].getBoundingClientRect ? th.offsetWidth : 0;
+      startWidth = th.offsetWidth;
+      document.body.style.cursor = 'col-resize';
+      e.preventDefault();
+    });
+  });
+
+  table.querySelectorAll('tr').forEach((row) => {
+    const firstCell = row.children[0];
+    const rowResizer = document.createElement('div');
+    rowResizer.className = 'row-resizer';
+    firstCell.style.position = 'relative';
+    firstCell.appendChild(rowResizer);
+    rowResizer.addEventListener('mousedown', (e) => {
+      resizingRow = row;
+      startY = e.pageY;
+      startHeight = row.offsetHeight;
+      document.body.style.cursor = 'row-resize';
+      e.preventDefault();
+    });
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (resizingCol) {
+    const diff = e.pageX - startX;
+    const newWidth = Math.max(20, startWidth + diff);
+    const tableWidth = table.offsetWidth;
+    const pct = (newWidth / tableWidth) * 100;
+    cols[colIndex].style.width = pct + '%';
+  }
+  if (resizingRow) {
+    const diff = e.pageY - startY;
+    const newHeight = Math.max(20, startHeight + diff);
+    resizingRow.querySelectorAll('td, th').forEach(c => c.style.height = newHeight + 'px');
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  resizingCol = false;
+  resizingRow = null;
+  document.body.style.cursor = 'default';
+});
+
+addResizers();
+
+// ---------- Add / remove item rows ----------
+function printMode(mode) {
+  const styleId = 'print-mode-style';
+  let el = document.getElementById(styleId);
+  if (!el) {
+    el = document.createElement('style');
+    el.id = styleId;
+    document.head.appendChild(el);
+  }
+  if (mode === 'letterhead') {
+    el.textContent = '@page { size: A4; margin: 4cm 1cm 1cm 1cm; } #companyHeader { display: none !important; }';
+  } else if (mode === 'normal') {
+    el.textContent = '@page { size: A4; margin: 1cm; } #companyHeader { display: none !important; }';
+  } else if (mode === 'pdf') {
+    el.textContent = '@page { size: A4; margin: 1cm; } #companyHeader { display: table !important; opacity: 1 !important; font-size: 12px !important; }';
+  }
+  window.print();
+}
+
+function addRow() {
+  const newRow = document.createElement('tr');
+  newRow.className = 'items-box-row';
+  for (let i = 0; i < 7; i++) {
+    const td = document.createElement('td');
+    td.contentEditable = 'true';
+    newRow.appendChild(td);
+  }
+  table.appendChild(newRow);
+  const firstCell = newRow.children[0];
+  const rowResizer = document.createElement('div');
+  rowResizer.className = 'row-resizer';
+  firstCell.style.position = 'relative';
+  firstCell.appendChild(rowResizer);
+  rowResizer.addEventListener('mousedown', (e) => {
+    resizingRow = newRow;
+    startY = e.pageY;
+    startHeight = newRow.offsetHeight;
+    document.body.style.cursor = 'row-resize';
+    e.preventDefault();
+  });
+}
+
+function removeRow() {
+  const rows = table.querySelectorAll('.items-box-row');
+  if (rows.length > 1) {
+    rows[rows.length - 1].remove();
+  }
+}
+
+// ---------- Client auto-fill (Bill To) ----------
+const clientData = {
+  qiddiya: {
+    name: 'Qiddiya Park Operations<br>شركة القدية لتشغيل مدن الملاهي المحدودة شركة شخص واحد',
+    vat: '310228530110003',
+    cr: '7002546609 / 1010934359',
+    district: 'AL MUZAHIMIYAH<br>المزاحمية',
+    postal: '19662',
+    building: '2448',
+    secondary: '7460'
+  },
+  aquarabia: {
+    name: 'Aquarabia',
+    vat: '',
+    cr: '',
+    district: '',
+    postal: '',
+    building: '',
+    secondary: ''
+  },
+  sixflags: {
+    name: 'Six Flags',
+    vat: '',
+    cr: '',
+    district: '',
+    postal: '',
+    building: '',
+    secondary: ''
+  }
+};
+
+function fillClientInfo() {
+  const key = document.getElementById('clientSelect').value;
+  if (!key) return;
+  const d = clientData[key];
+  document.getElementById('cliName').innerHTML = d.name || '&nbsp;';
+  document.getElementById('cliVat').innerHTML = d.vat || '&nbsp;';
+  document.getElementById('cliCr').innerHTML = d.cr || '&nbsp;';
+  document.getElementById('cliDistrict').innerHTML = d.district || '&nbsp;';
+  document.getElementById('cliPostal').innerHTML = d.postal || '&nbsp;';
+  document.getElementById('cliBuilding').innerHTML = d.building || '&nbsp;';
+  document.getElementById('cliSecondary').innerHTML = d.secondary || '&nbsp;';
+  // PO number is intentionally left untouched - filled manually per invoice
+}
+
+// ---------- Toggle text direction per box ----------
+function setDir(id, dir) {
+  const el = document.getElementById(id);
+  el.setAttribute('dir', dir);
+  el.style.textAlign = dir === 'rtl' ? 'right' : 'left';
+  el.focus();
+}
+function copyNotes() {
+  const a1 = document.getElementById('notesArea1').innerText.trim();
+  const a3 = document.getElementById('notesArea3').innerText.trim();
+  const text = [a1, a3].filter(t => t).join('   |   ');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const original = btn.textContent;
+    btn.textContent = '✓ تم النسخ';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }).catch(() => {
+    const notesArea = document.getElementById('notesArea1');
+    const range = document.createRange();
+    range.selectNodeContents(notesArea);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+  });
+}
+
+function uploadQR(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('qrImage');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.getElementById('qrPlaceholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+</script>
+
+</body>
+</html>
