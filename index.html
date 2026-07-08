@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>فاتورة Chopped - قابلة للتعديل</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @page {
     size: 9.5in 11in;
@@ -648,7 +647,42 @@ function copyNotes() {
   });
 }
 
-// ── Auto Calculation ──
+// ── Enter key navigation (Excel-style) ──
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  const active = document.activeElement;
+  if (!active || active.contentEditable !== 'true') return;
+  // فقط للخلايا داخل جدول الأصناف
+  const row = active.closest('.items-box-row');
+  if (!row) return;
+  e.preventDefault();
+
+  const cells = [...row.querySelectorAll('td[contenteditable="true"]')];
+  const idx = cells.indexOf(active);
+
+  if (idx < cells.length - 1) {
+    // انتقل للخلية التالية بنفس الصف
+    cells[idx + 1].focus();
+  } else {
+    // آخر خلية — أضف صف جديد أو انتقل للصف التالي
+    const tbl = document.getElementById('itemsTable');
+    const rows = [...tbl.querySelectorAll('.items-box-row')];
+    const rowIdx = rows.indexOf(row);
+    if (rowIdx < rows.length - 1) {
+      // في صف تالي موجود
+      const nextCells = rows[rowIdx + 1].querySelectorAll('td[contenteditable="true"]');
+      if (nextCells[0]) nextCells[0].focus();
+    } else {
+      // آخر صف — أضف صف جديد وانتقل إليه
+      addRow();
+      const newRows = tbl.querySelectorAll('.items-box-row');
+      const newCells = newRows[newRows.length - 1].querySelectorAll('td[contenteditable="true"]');
+      if (newCells[0]) newCells[0].focus();
+    }
+  }
+});
+
+
 function fmt(n) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -726,48 +760,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 function generateZatcaQR() {
-  const sellerName = 'Al-Afaq Al-Mumtada Co. Ltd.';
-  const vatNumber  = '310452781300003';
-  const invoiceDate = (document.getElementById('invoiceDate')?.innerText.trim() || new Date().toISOString().split('T')[0]).replace(/\//g,'-');
+  const sellerName  = 'Al-Afaq Al-Mumtada Co. Ltd.';
+  const vatNumber   = '310452781300003';
+  const invoiceDate = (document.getElementById('invoiceDate')?.innerText.trim() || '').replace(/\//g,'-');
   const netAmount   = (document.getElementById('netAmount')?.innerText.trim() || '0').replace(/,/g,'');
   const vatAmount   = (document.getElementById('vatAmount')?.innerText.trim() || '0').replace(/,/g,'');
   const timestamp   = invoiceDate + 'T00:00:00Z';
 
-  // TLV Encoding (ZATCA Phase 1)
   function tlv(tag, value) {
     const val = new TextEncoder().encode(value);
     return new Uint8Array([tag, val.length, ...val]);
   }
   const tlvData = new Uint8Array([
-    ...tlv(1, sellerName),
-    ...tlv(2, vatNumber),
-    ...tlv(3, timestamp),
-    ...tlv(4, netAmount),
-    ...tlv(5, vatAmount),
+    ...tlv(1, sellerName), ...tlv(2, vatNumber),
+    ...tlv(3, timestamp),  ...tlv(4, netAmount), ...tlv(5, vatAmount),
   ]);
   const b64 = btoa(String.fromCharCode(...tlvData));
 
-  // توليد QR
-  const qrDiv = document.createElement('div');
-  qrDiv.style.cssText = 'position:fixed;left:-9999px;top:0;';
-  document.body.appendChild(qrDiv);
-  new QRCode(qrDiv, { text: b64, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+  // Try Google Charts first, fallback to QR.io API
+  const apis = [
+    'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' + encodeURIComponent(b64),
+    'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(b64),
+  ];
 
-  setTimeout(() => {
-    const canvas = qrDiv.querySelector('canvas');
-    const img = qrDiv.querySelector('img');
-    const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
-    if (src) {
-      const qrImg = document.getElementById('qrImage');
-      qrImg.src = src;
-      qrImg.style.display = 'block';
-      document.getElementById('qrPlaceholder').style.display = 'none';
+  const qrImg = document.getElementById('qrImage');
+  let tried = 0;
+
+  function tryNext() {
+    if (tried >= apis.length) {
+      document.getElementById('qrPlaceholder').innerText = '⚠️ تعذر توليد QR - تحقق من الإنترنت';
+      document.getElementById('qrPlaceholder').style.display = 'block';
+      return;
     }
-    document.body.removeChild(qrDiv);
-  }, 300);
+    qrImg.src = apis[tried++];
+    qrImg.style.display = 'block';
+    document.getElementById('qrPlaceholder').style.display = 'none';
+  }
+
+  qrImg.onerror = tryNext;
+  tryNext();
 }
 
 
+function uploadQR(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
