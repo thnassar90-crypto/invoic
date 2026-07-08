@@ -112,7 +112,7 @@
     .col-resizer, .row-resizer { display: none !important; }
     [contenteditable="true"]:hover, [contenteditable="true"]:focus { background: transparent; }
     #qrPlaceholder { display: none !important; }
-    #companyHeader { display: none !important; }
+    body:not(.print-pdf) #companyHeader { display: none !important; }
     .page-wrap { padding: 0; }
     .page { box-shadow: none; width: 100%; min-height: auto; padding: 0; margin: 0; }
     .items-box-row td { height: auto !important; }
@@ -207,7 +207,7 @@
     #companyHeader { font-size: 11px; opacity: 0.6; margin-bottom: 4px; }
   }
   @media print {
-    #companyHeader { display: none !important; }
+    body:not(.print-pdf) #companyHeader { display: none !important; }
   }
 
   .client-select-bar select {
@@ -230,6 +230,7 @@
   <button onclick="printMode('normal')">🖨️ طباعة عادي A4</button>
   <button onclick="printMode('pdf')" style="background:#e74c3c;">📄 حفظ PDF كامل</button>
   <button onclick="recalcTotals()" style="background:#27ae60;">🧮 احسب الكل</button>
+  <button onclick="clearItems()" style="background:#e67e22;">🗑️ افرغ الأصناف</button>
   <button class="secondary" onclick="addRow()">+ صف</button>
   <button class="secondary" onclick="removeRow()">- صف</button>
   <span class="hint">⚠️ عند الطباعة: تأكد إن Scale = 80% و Margins = None</span>
@@ -528,13 +529,17 @@ function printMode(mode) {
     document.head.appendChild(el);
   }
   if (mode === 'letterhead') {
-    el.textContent = '@page { size: A4; margin: 4cm 1cm 1cm 1cm; } #companyHeader { display: none !important; }';
+    document.body.classList.remove('print-pdf');
+    el.textContent = '@page { size: A4; margin: 4cm 1cm 1cm 1cm; }';
   } else if (mode === 'normal') {
-    el.textContent = '@page { size: A4; margin: 1cm; } #companyHeader { display: none !important; }';
+    document.body.classList.remove('print-pdf');
+    el.textContent = '@page { size: A4; margin: 1cm; }';
   } else if (mode === 'pdf') {
-    el.textContent = '@page { size: A4; margin: 1cm; } #companyHeader { display: table !important; opacity: 1 !important; font-size: 12px !important; }';
+    document.body.classList.add('print-pdf');
+    el.textContent = '@page { size: A4; margin: 1cm; }';
   }
   window.print();
+  setTimeout(() => document.body.classList.remove('print-pdf'), 2000);
 }
 
 function addRow() {
@@ -680,6 +685,25 @@ function recalcTotals() {
   set('totalAfterDisc', afterDisc);
   set('vatAmount',      vat);
   set('netAmount',      net);
+}
+
+function clearItems() {
+  if (!confirm('بدك تفرغ كل الأصناف؟')) return;
+  const tbl = document.getElementById('itemsTable');
+  const rows = tbl.querySelectorAll('.items-box-row');
+  rows.forEach((row, i) => {
+    if (i === 0) {
+      row.querySelectorAll('td').forEach(td => {
+        if (!td.querySelector('.row-resizer')) td.innerText = '';
+      });
+    } else {
+      row.remove();
+    }
+  });
+  ['purchaseTotal','discountAmount','totalAfterDisc','vatAmount','netAmount'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = '0.00';
+  });
 }
 
 function hookItemRows() {
