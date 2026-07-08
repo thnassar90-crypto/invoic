@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>فاتورة Chopped - قابلة للتعديل</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @page {
     size: 9.5in 11in;
@@ -228,6 +229,7 @@
   <button onclick="printMode('letterhead')">🖨️ طباعة على ليتر هيد</button>
   <button onclick="printMode('normal')">🖨️ طباعة عادي A4</button>
   <button onclick="printMode('pdf')" style="background:#e74c3c;">📄 حفظ PDF كامل</button>
+  <button onclick="recalcTotals()" style="background:#27ae60;">🧮 احسب الكل</button>
   <button class="secondary" onclick="addRow()">+ صف</button>
   <button class="secondary" onclick="removeRow()">- صف</button>
   <span class="hint">⚠️ عند الطباعة: تأكد إن Scale = 80% و Margins = None</span>
@@ -292,7 +294,7 @@
     </tr>
     <tr>
       <td class="en" contenteditable="true">Invoice Date التاريخ</td>
-      <td class="ar center" contenteditable="true">2026/07/01</td>
+      <td class="ar center" contenteditable="true" id="invoiceDate">2026/07/01</td>
       <td class="ar" contenteditable="true">2026/07/01 :التاريخ</td>
     </tr>
     <tr>
@@ -410,7 +412,7 @@
       <col style="width:17%"><col style="width:17%"><col style="width:49%"><col style="width:17%">
     </colgroup>
     <tr>
-      <td contenteditable="true">60,148.83</td>
+      <td contenteditable="true" id="purchaseTotal">60,148.83</td>
       <td class="ar center bold" contenteditable="true">Purchase Order<br>القيمة الإجمالية</td>
       <td class="ar center" rowspan="5" style="vertical-align: middle; padding: 8px;">
         <div contenteditable="true" style="font-size:11px; margin-bottom:10px;">
@@ -420,28 +422,29 @@
           <img id="qrImage" style="display:none; width:180px; height:180px; object-fit:contain;">
           <span id="qrPlaceholder">[ مكان QR Code ]</span>
         </div>
-        <button class="copy-btn qr-upload-btn" onclick="document.getElementById('qrFileInput').click()">📷 رفع صورة QR</button>
+        <button class="copy-btn qr-upload-btn" onclick="generateZatcaQR()">⚡ توليد QR زاتكا</button>
         <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="uploadQR(event)">
+        <button class="copy-btn qr-upload-btn" onclick="document.getElementById('qrFileInput').click()" style="font-size:10px; margin-top:3px;">📷 أو ارفع صورة</button>
       </td>
       <td class="ar center bold" contenteditable="true">Customer Name<br>اسم العميل</td>
     </tr>
     <tr>
-      <td contenteditable="true">0.00</td>
+      <td contenteditable="true" id="discountAmount" oninput="recalcTotals()">0.00</td>
       <td class="ar center bold" contenteditable="true">Discount<br>الخصم</td>
       <td class="ar center bold" contenteditable="true">Customer Sign.<br>توقيع العميل</td>
     </tr>
     <tr>
-      <td contenteditable="true">60,148.83</td>
+      <td contenteditable="true" id="totalAfterDisc">60,148.83</td>
       <td class="ar center bold" contenteditable="true">Total After Disc.<br>اجمالي بعد الخصم</td>
       <td contenteditable="true">&nbsp;</td>
     </tr>
     <tr>
-      <td contenteditable="true">9,022.32</td>
+      <td contenteditable="true" id="vatAmount">9,022.32</td>
       <td class="ar center bold" contenteditable="true">VAT<br>ضريبة مضافة</td>
       <td class="ar center bold" contenteditable="true">Salesman<br>البائع</td>
     </tr>
     <tr>
-      <td class="bold" contenteditable="true">69,171.15</td>
+      <td class="bold" contenteditable="true" id="netAmount">69,171.15</td>
       <td class="ar center bold" contenteditable="true">Net Amount<br>صافي القيمة</td>
       <td contenteditable="true">&nbsp;</td>
     </tr>
@@ -540,6 +543,10 @@ function addRow() {
   for (let i = 0; i < 7; i++) {
     const td = document.createElement('td');
     td.contentEditable = 'true';
+    if (i === 1 || i === 3) {
+      td.addEventListener('input', () => recalcTotals());
+      td.addEventListener('blur',  () => recalcTotals());
+    }
     newRow.appendChild(td);
   }
   table.appendChild(newRow);
@@ -636,7 +643,107 @@ function copyNotes() {
   });
 }
 
-function uploadQR(event) {
+// ── Auto Calculation ──
+function fmt(n) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseNum(str) {
+  return parseFloat((str || '0').replace(/,/g, '')) || 0;
+}
+
+function recalcRow(row) {
+  const cells = row.querySelectorAll('td');
+  // أعمدة: [0]=Total, [1]=UnitPrice, [2]=Unit, [3]=Qty, [4]=Desc, [5]=Barcode, [6]=ItemCode
+  const price = parseNum(cells[1]?.innerText);
+  const qty   = parseNum(cells[3]?.innerText);
+  if (price > 0 && qty > 0) {
+    cells[0].innerText = fmt(price * qty);
+  }
+}
+
+function recalcTotals() {
+  // احسب مجموع كل الصفوف
+  let subtotal = 0;
+  document.querySelectorAll('.items-box-row').forEach(row => {
+    recalcRow(row);
+    subtotal += parseNum(row.querySelectorAll('td')[0]?.innerText);
+  });
+
+  const discount    = parseNum(document.getElementById('discountAmount')?.innerText);
+  const afterDisc   = subtotal - discount;
+  const vat         = afterDisc * 0.15;
+  const net         = afterDisc + vat;
+
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = fmt(val); };
+  set('purchaseTotal',  subtotal);
+  set('totalAfterDisc', afterDisc);
+  set('vatAmount',      vat);
+  set('netAmount',      net);
+}
+
+function hookItemRows() {
+  document.querySelectorAll('.items-box-row').forEach(row => {
+    const cells = row.querySelectorAll('td');
+    // خانة السعر [1] وخانة الكمية [3]
+    [1, 3].forEach(i => {
+      if (cells[i]) {
+        cells[i].addEventListener('input', () => recalcTotals());
+        cells[i].addEventListener('blur',  () => recalcTotals());
+      }
+    });
+  });
+}
+
+// شغّل الحساب عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', () => {
+  hookItemRows();
+});
+
+
+function generateZatcaQR() {
+  const sellerName = 'Al-Afaq Al-Mumtada Co. Ltd.';
+  const vatNumber  = '310452781300003';
+  const invoiceDate = (document.getElementById('invoiceDate')?.innerText.trim() || new Date().toISOString().split('T')[0]).replace(/\//g,'-');
+  const netAmount   = (document.getElementById('netAmount')?.innerText.trim() || '0').replace(/,/g,'');
+  const vatAmount   = (document.getElementById('vatAmount')?.innerText.trim() || '0').replace(/,/g,'');
+  const timestamp   = invoiceDate + 'T00:00:00Z';
+
+  // TLV Encoding (ZATCA Phase 1)
+  function tlv(tag, value) {
+    const val = new TextEncoder().encode(value);
+    return new Uint8Array([tag, val.length, ...val]);
+  }
+  const tlvData = new Uint8Array([
+    ...tlv(1, sellerName),
+    ...tlv(2, vatNumber),
+    ...tlv(3, timestamp),
+    ...tlv(4, netAmount),
+    ...tlv(5, vatAmount),
+  ]);
+  const b64 = btoa(String.fromCharCode(...tlvData));
+
+  // توليد QR
+  const qrDiv = document.createElement('div');
+  qrDiv.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(qrDiv);
+  new QRCode(qrDiv, { text: b64, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+
+  setTimeout(() => {
+    const canvas = qrDiv.querySelector('canvas');
+    const img = qrDiv.querySelector('img');
+    const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+    if (src) {
+      const qrImg = document.getElementById('qrImage');
+      qrImg.src = src;
+      qrImg.style.display = 'block';
+      document.getElementById('qrPlaceholder').style.display = 'none';
+    }
+    document.body.removeChild(qrDiv);
+  }, 300);
+}
+
+
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
