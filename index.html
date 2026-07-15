@@ -98,8 +98,13 @@
   .row-resizer:hover {
     background: rgba(74,144,226,0.35);
   }
-  .items-table td, .items-table th { min-width: 20px; vertical-align: top; }
+  .items-table td, .items-table th { min-width: 20px; vertical-align: middle; text-align: center; }
+  .items-table td:nth-child(5) { text-align: right; } /* عمود الوصف يمين */
   .items-box-row td { height: 32px; }
+  /* تلميح للخانات الفاضية */
+  #invoiceNo:empty::before  { content: 'رقم الفاتورة...'; color: #bbb; }
+  #invoiceDate:empty::before { content: 'التاريخ YYYY/MM/DD...'; color: #bbb; }
+  #dueDate:empty::before     { content: 'تاريخ الاستحقاق...'; color: #bbb; }
 
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -289,13 +294,13 @@
     </tr>
     <tr>
       <td class="en bold" contenteditable="true">Invoice No. رقم الفاتورة</td>
-      <td class="center bold" contenteditable="true">101049507</td>
-      <td class="ar bold" contenteditable="true">101049507 :رقم الفاتورة</td>
+      <td class="center bold" contenteditable="true" id="invoiceNo"></td>
+      <td class="ar bold" contenteditable="true">رقم الفاتورة</td>
     </tr>
     <tr>
       <td class="en" contenteditable="true">Invoice Date التاريخ</td>
-      <td class="ar center" contenteditable="true" id="invoiceDate">2026/07/01</td>
-      <td class="ar" contenteditable="true">2026/07/01 :التاريخ</td>
+      <td class="ar center" contenteditable="true" id="invoiceDate"></td>
+      <td class="ar" contenteditable="true">التاريخ</td>
     </tr>
     <tr>
       <td class="en" contenteditable="true">Invoice Type نوع الفاتورة</td>
@@ -304,8 +309,8 @@
     </tr>
     <tr>
       <td class="en" contenteditable="true">Due Date تاريخ الاستحقاق</td>
-      <td class="ar center" contenteditable="true">2026/08/31</td>
-      <td class="ar" contenteditable="true">2026/08/31 :تاريخ الاستحقاق</td>
+      <td class="ar center" contenteditable="true" id="dueDate"></td>
+      <td class="ar" contenteditable="true">تاريخ الاستحقاق</td>
     </tr>
   </table>
 
@@ -422,9 +427,9 @@
           <img id="qrImage" style="display:none; width:180px; height:180px; object-fit:contain;">
           <span id="qrPlaceholder">[ مكان QR Code ]</span>
         </div>
-        <button class="copy-btn qr-upload-btn" onclick="generateZatcaQR()">⚡ توليد QR زاتكا</button>
+        <button class="copy-btn qr-upload-btn" onclick="document.getElementById('qrFileInput').click()">📷 رفع صورة QR</button>
         <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="uploadQR(event)">
-        <button class="copy-btn qr-upload-btn" onclick="document.getElementById('qrFileInput').click()" style="font-size:10px; margin-top:3px;">📷 أو ارفع صورة</button>
+        <button class="copy-btn qr-upload-btn" onclick="generateZatcaQR()" style="margin-top:4px;">⚡ توليد QR زاتكا</button>
       </td>
       <td class="ar center bold" contenteditable="true">Customer Name<br>اسم العميل</td>
     </tr>
@@ -647,36 +652,31 @@ function copyNotes() {
   });
 }
 
-// ── Enter key navigation (Excel-style) ──
+// ── Enter key navigation (RTL - Arabic) ──
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Enter') return;
   const active = document.activeElement;
   if (!active || active.contentEditable !== 'true') return;
-  // فقط للخلايا داخل جدول الأصناف
   const row = active.closest('.items-box-row');
   if (!row) return;
   e.preventDefault();
 
-  const cells = [...row.querySelectorAll('td[contenteditable="true"]')];
+  const cells = [...row.querySelectorAll('td[contenteditable="true"]')].reverse(); // عكس الترتيب للعربي
   const idx = cells.indexOf(active);
 
   if (idx < cells.length - 1) {
-    // انتقل للخلية التالية بنفس الصف
     cells[idx + 1].focus();
   } else {
-    // آخر خلية — أضف صف جديد أو انتقل للصف التالي
     const tbl = document.getElementById('itemsTable');
     const rows = [...tbl.querySelectorAll('.items-box-row')];
     const rowIdx = rows.indexOf(row);
     if (rowIdx < rows.length - 1) {
-      // في صف تالي موجود
-      const nextCells = rows[rowIdx + 1].querySelectorAll('td[contenteditable="true"]');
+      const nextCells = [...rows[rowIdx + 1].querySelectorAll('td[contenteditable="true"]')].reverse();
       if (nextCells[0]) nextCells[0].focus();
     } else {
-      // آخر صف — أضف صف جديد وانتقل إليه
       addRow();
       const newRows = tbl.querySelectorAll('.items-box-row');
-      const newCells = newRows[newRows.length - 1].querySelectorAll('td[contenteditable="true"]');
+      const newCells = [...newRows[newRows.length - 1].querySelectorAll('td[contenteditable="true"]')].reverse();
       if (newCells[0]) newCells[0].focus();
     }
   }
@@ -738,6 +738,16 @@ function clearItems() {
     const el = document.getElementById(id);
     if (el) el.innerText = '0.00';
   });
+  // احذف الـ QR
+  const qrImg = document.getElementById('qrImage');
+  qrImg.src = '';
+  qrImg.style.display = 'none';
+  document.getElementById('qrPlaceholder').style.display = 'block';
+  // افرغ رقم الفاتورة والتواريخ
+  ['invoiceNo','invoiceDate','dueDate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = '';
+  });
 }
 
 function hookItemRows() {
@@ -777,28 +787,11 @@ function generateZatcaQR() {
   ]);
   const b64 = btoa(String.fromCharCode(...tlvData));
 
-  // Try Google Charts first, fallback to QR.io API
-  const apis = [
-    'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' + encodeURIComponent(b64),
-    'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(b64),
-  ];
-
   const qrImg = document.getElementById('qrImage');
-  let tried = 0;
-
-  function tryNext() {
-    if (tried >= apis.length) {
-      document.getElementById('qrPlaceholder').innerText = '⚠️ تعذر توليد QR - تحقق من الإنترنت';
-      document.getElementById('qrPlaceholder').style.display = 'block';
-      return;
-    }
-    qrImg.src = apis[tried++];
-    qrImg.style.display = 'block';
-    document.getElementById('qrPlaceholder').style.display = 'none';
-  }
-
-  qrImg.onerror = tryNext;
-  tryNext();
+  const placeholder = document.getElementById('qrPlaceholder');
+  qrImg.onload  = () => { qrImg.style.display = 'block'; placeholder.style.display = 'none'; };
+  qrImg.onerror = () => { placeholder.innerText = '⚠️ تأكد من الإنترنت'; placeholder.style.display = 'block'; qrImg.style.display = 'none'; };
+  qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=' + encodeURIComponent(b64);
 }
 
 
